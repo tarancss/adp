@@ -1,0 +1,22 @@
+{
+	"endpoint": "",
+	"port": "3030",
+	"SSLport": "",
+	"SSLcert": "",
+	"SSLkey": "",
+
+	"dbtype": "mongodb",
+	"dbconn": "mongodb://127.0.0.1",
+	"mbtype": "amqp",
+	"mbconn": "amqp://guest:guest@localhost:5672",
+
+	"blockchains": [
+		{"name":"ropsten","node":"https://ropsten.infura.io/NoPSZJipdt0sqtNlaJq5", "secret":"", "maxBlocks": 8},
+		{"name":"rinkeby","node":"https://rinkeby.infura.io/NoPSZJipdt0sqtNlaJq5", "secret":"", "maxBlocks": 8},
+		{"name":"mainNet","node":"https://mainnet.infura.io/NoPSZJipdt0sqtNlaJq5", "secret":"", "maxBlocks": 16}
+	],
+
+	"hdseed": "642ce4e20f09c9f4d285c2b336063eaafbe4cb06dece8134f3a64bdd8f8c0c24df73e1a2e7056359b6db61e179ff45e5ada51d14f07b30becb6d92b961d35df4",
+
+	"end": "end"
+}

@@ -1,0 +1,39 @@
+version: "3.3"
+services:
+
+  rmq:
+    image: rabbitmq:latest
+    container_name: adp_rmq
+    networks: 
+      - adp
+
+  mongo:
+    image: mongo
+    container_name: adp_mongo
+    networks: 
+      - adp
+
+  wallet:
+    build:
+      context: .
+      dockerfile: ./cmd/wallet/Dockerfile    
+    depends_on:
+      - rmq
+      - mongo
+    ports:
+      - "3030:3030"
+    networks: 
+      - adp
+
+  explorer:
+    build:
+      context: .
+      dockerfile: ./cmd/explorer/Dockerfile      
+    depends_on:
+      - rmq
+      - mongo
+    networks: 
+      - adp
+
+networks: 
+  adp:
