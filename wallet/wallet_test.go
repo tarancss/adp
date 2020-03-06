@@ -156,8 +156,10 @@ func TestAPI(t *testing.T) {
 					}
 				case "getAdr":
 					var sla []store.ListenedAddresses = []store.ListenedAddresses{}
-					if b != "" && err = json.Unmarshal([]byte(b), &sla); err != nil {
-						t.Errorf("[%s] Error unmarshaling body:%s error:%s", c.name, b, err)
+					if b != "" {
+						if err = json.Unmarshal([]byte(b), &sla); err != nil {
+							t.Errorf("[%s] Error unmarshaling body:%s error:%s", c.name, b, err)
+						}
 					}
 					// check results
 					if len(sla) != len(c.resExp.([]store.ListenedAddresses)) || (len(sla) > 0 && len(c.resExp.([]store.ListenedAddresses)) > 0 && (sla[0].Net != c.resExp.([]store.ListenedAddresses)[0].Net)) {
@@ -165,8 +167,10 @@ func TestAPI(t *testing.T) {
 					}
 				case "send", "tx":
 					var tx types.Trans
-					if b != "" && err = json.Unmarshal([]byte(b), &tx); err != nil {
-						t.Errorf("[%s] Error unmarshaling body:%s error:%s", c.name, b, err)
+					if b != "" {
+						if err = json.Unmarshal([]byte(b), &tx); err != nil {
+							t.Errorf("[%s] Error unmarshaling body:%s error:%s", c.name, b, err)
+						}
 					}
 					// check result
 					if tx.Hash != c.resExp.(types.Trans).Hash || tx.To != c.resExp.(types.Trans).To || tx.From != c.resExp.(types.Trans).From || tx.Value != c.resExp.(types.Trans).Value {
