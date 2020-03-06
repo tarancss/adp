@@ -1,4 +1,4 @@
-// Implements the interface for MongoDB
+// Package mongo implements the interface for MongoDB.
 package mongo
 
 import (
@@ -16,24 +16,24 @@ import (
 	"github.com/tarancss/adp/lib/util"
 )
 
-// Mongo implements a connection to a MongoDB database
+// Mongo implements a connection to a MongoDB database.
 type Mongo struct {
 	c *mgo.Client
 }
 
-// MongoAddress implements a store address to MongoDB
+// MongoAddress implements a store address to MongoDB.
 type MongoAddress struct {
 	ID   primitive.ObjectID `json:"_id" bson:"_id"`
 	Name string             `json:"name,omitempty" bson:"name,omitempty"`
 	Addr string             `json:"address" bson:"address"`
 }
 
-// Address converts a MongoAddress to store.Address type
+// Address converts a MongoAddress to store.Address type.
 func (a MongoAddress) Address() store.Address {
 	return store.Address{ID: a.ID[:], Addr: a.Addr, Name: a.Name}
 }
 
-// New returns a Mongo client connection to the specified MongoDB database uri
+// New returns a Mongo client connection to the specified MongoDB database uri.
 func New(uri string) (store.DB, error) {
 	// get a client
 	c, err := mgo.NewClient(options.Client().ApplyURI(uri))
@@ -96,6 +96,7 @@ func (m *Mongo) RemoveAddress(a store.Address, net string) (err error) {
 // GetAddresses returns the addresses or objects monitored for the network or blockchains indicated in the net slice.
 func (m *Mongo) GetAddresses(net []string) (addrs []store.ListenedAddresses, err error) {
 	var cols, docs *mgo.Cursor
+	addrs = []store.ListenedAddresses{}
 	cols, err = m.c.Database("addr").ListCollections(context.Background(), bson.D{})
 	if err == nil {
 		for cols.Next(context.Background()) == true {
@@ -133,5 +134,11 @@ func (m *Mongo) LoadExplorer(net string) (ne store.NetExplorer, err error) {
 // SaveExplorer saves to db the NetExplorer for the indicated blockchain.
 func (m *Mongo) SaveExplorer(net string, ne store.NetExplorer) (err error) {
 	_, err = m.c.Database("expl").Collection(net).UpdateOne(context.Background(), bson.D{}, bson.D{{"$set", bson.D{{"block", ne.Block}, {"bh", ne.Bh}, {"bhi", ne.Bhi}, {"map", ne.Map}}}}, options.Update().SetUpsert(true))
+	return
+}
+
+// DeleteExplorer deletes from db the NetExplorer for the indicated blockchain.
+func (m *Mongo) DeleteExplorer(net string) (err error) {
+	_, err = m.c.Database("expl").Collection(net).DeleteOne(context.Background(), bson.D{}, options.Delete())
 	return
 }

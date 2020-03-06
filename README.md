@@ -5,6 +5,16 @@ adp enables users to interact with multiple blockchains via a single, easy-to-us
 [![GoDoc](https://godoc.org/github.com/tarancss/adp?status.svg)](https://godoc.org/github.com/tarancss/adp)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tarancss/adp)](https://goreportcard.com/report/github.com/tarancss/adp)
 
+
+#### Table of Contents
+
+- [What is adp?](#what-is-adp?)
+- [Wallet API documentation](#wallet-api-documentation)
+- [Usage](#usage)
+- [Configuring the microservices](#configuring-the-microservices)
+- [Using the API from another golang program](#using-the-api-from-another-golang-program)
+- [Testing adp](#testing-adp)
+
 #### What is adp?
 
 adp provides two backend microservices:
@@ -163,3 +173,37 @@ n, _ = resp.Body.Read(p)
 resp.Body.Close()
 var address string = string(p[:n])
 ```
+
+#### Testing adp
+###### Approach
+Testing microservices requires a somehow different approach than monolithic applications. For adp, I have tried to test all functionality avoiding over testing. Except for unit testing, most tests involve setting up mock server for input from a blockchain and starting dependency services such as MongoDB and RabbitMQ.
+
+Tests are included within the testable packages and are run in isolation. Each test will setup the required scenario - more for component and contract tests, less for unit tests. Test cases are presented with the expected results and are run. Be aware that tests may leave the dependency services Mongo and RabbitMQ statusses changed. Please run tests from the specific package folder with: `go test`.
+
+End to end tests are out of scope and they should be run against a real blockchain with real data. Testing persistence of data by the microservices and message sending/receiving when microservices do not terminate gracefully is extremely important so that services can get up again from a stable status. In particular, this is important for the explorer and so once a block is fully explored, the status is updated to DB so that if the service failed, it would resume at the right block.
+
+Also, load testing, availability testing, etc, are out of scope but are key tests to be considered and done once you plan to move to production.
+
+###### Unit testing
+package **lib/block/ethereum**: includes specific tests to decode transactions from received blocks.
+
+package **lib/config**: tests reading microservice configuration from files.
+
+package **lib/msg/amqp**: tests the setup of exchanges and queues.
+
+package **lib/store/mongo**: tests persistence functionality for both wallet and explorer microservice.
+
+###### Component testing
+package **explorer/netexplorer**: tests block chaining and adding/removing addresses for exploring.
+
+package **explorer**: tests blockchain exploration and detection of transactions for monitored addresses.
+
+
+###### Integration testing
+package **lib/msg/amqp**: tests sending and receiving messages for both microservices.
+
+
+###### Contract testing
+package **explorer**: tests that wallet requests are managed properly.
+
+package **wallet**: tests exposed API.

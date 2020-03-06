@@ -57,7 +57,24 @@
  
   * **Error Response:**
     * **Code:** 400 Bad request<br/>
-    **Content:** `{%!e(string=ParseUint) %!e(string=2f) %!e(*errors.errorString=&{invalid syntax})}`
+    **Content:** `{%!e(string=Invalid change: has to be either 0 /1 or external / change)}`
+
+  
+* **URL:** /listen/{address}?net={blockchain}<br/>
+  Requests the explorer to monitor (method POST) or stop monitoring (method DELETE) an address.
+  * **Method:** `POST` or `DELETE`
+  * **URL Params:**
+     **Required:** <br/>
+           `net=[string]`
+  * **Data Params:** None.
+  * **Success Response:**
+    * **Code:** 201 <br />
+    **ContentType:** `application/json;charset=utf8` <br/>
+    **Content:** none
+ 
+  * **Error Response:**
+    * **Code:** 400 Bad request<br/>
+    **Content:** `{%!e(string=Undefined blockchain - missing query: ?net=<blockchain>)}`
 
   
 * **URL:** /send
@@ -144,21 +161,4 @@ From a terminal:<br/>
 `curl "localhost:3030/tx/0x9626a3677e30331fc29a6e24d4e2c1693cd287c358ss8031ca43e18a27cedf3a6d?net=ropsten"` 
 <br/>
 
-  
-  * **URL:** /shutdown<br/>
-  Terminates the service.
-
-    * **Method:** `PUT`
-    *  **URL Params:** None.
-    * **Data Params:** None.
-    * **Success Response:**
-      * **Code:** 200 <br />
-        **Content:** `{"Bye."}`
- 
-    * **Error Response:**
-      All other methods return 405 Method not allowed.
-
-    * **Sample Call:**
-
-      `curl -X PUT localhost:3030/shutdown`  
 

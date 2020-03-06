@@ -1,4 +1,4 @@
-// Implements the interface for PostgreSQL
+// Package postgres implements the interface for PostgreSQL (TODO).
 package postgres
 
 import (
@@ -12,6 +12,7 @@ type Postgres struct {
 	db *sql.DB
 }
 
+// New returns a postgres client connection to the specified database in 'connection'.
 func New(connection string) (store.DB, error) {
 	var err error
 	var p Postgres
@@ -47,5 +48,10 @@ func (p *Postgres) LoadExplorer(net string) (ne store.NetExplorer, err error) {
 
 func (p *Postgres) SaveExplorer(net string, ne store.NetExplorer) (err error) {
 	println("postgres: SaveExplorer TODO!!!")
+	return
+}
+
+func (p *Postgres) DeleteExplorer(net string) (err error) {
+	println("postgres: DeleteExplorer TODO!!!")
 	return
 }

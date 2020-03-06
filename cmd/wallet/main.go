@@ -1,4 +1,4 @@
-// package main: wallet service
+// Package main: wallet service.
 //
 // Warning: The DB used by the microservice is just in order to serve requests of monitored addresses so it should be the same database used by the explorer microservice. Currently, the wallet does not persist any data. Alternatively, these requests could be replied asking the explorer service, so avoiding this DB requirement but creating more message broker traffic. To be considered.
 package main
@@ -106,7 +106,7 @@ func main() {
 		<-sigchan
 		log.Println("Program killed !")
 		// do last actions and wait for all write operations to end
-		w.StopWallet()
+		w.Stop()
 		close(finish)
 	}()
 

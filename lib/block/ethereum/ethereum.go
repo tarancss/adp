@@ -1,4 +1,4 @@
-// Implements interface for ethereum networks
+// Package ethereum implements interface for ethereum networks.
 package ethereum
 
 import (
@@ -16,21 +16,6 @@ type Ethereum struct {
 	c  *ethcli.EthCli
 	mb int
 }
-
-// Ethereum ERC20 token methodID (keccak-256 of the function name and arguments)
-const (
-	ERC20transfer256     = "a9059cbb" // transfer(address,uint256)
-	ERC20transferFrom256 = "23b872dd" // transferFrom(address,address,uint256)
-	ERC20transfer        = "6cb927d8" // transfer(address,uint)
-	ERC20transferFrom    = "a978501e" // transferFrom(address,address,uint)
-)
-
-// Transaction status constants
-const (
-	TrxPending uint8 = 0
-	TrxFailed  uint8 = 1
-	TrxSuccess uint8 = 2
-)
 
 // Init returns a connection to an ethereum node, using secret if necessary for authentication. maxBlocks is required to indicate how many blocks will be taken into account for uncle management.
 func Init(node, secret string, maxBlocks int) (*Ethereum, error) {
@@ -52,7 +37,7 @@ func (e *Ethereum) AvgBlock() int {
 	return 15 // we could put this in the config file...
 }
 
-// Close ends a connection
+// Close ends a connection.
 func (e *Ethereum) Close() {
 	e.c.End()
 }
@@ -140,7 +125,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 					err = types.ErrNoTrxInput
 					return
 				}
-				if tmp == "0x" || (len(tmp) > 2 && len(tmp) <= 10) || (len(tmp) > 10 && tmp[2:10] != ERC20transfer && tmp[2:10] != ERC20transfer256 && tmp[2:10] != ERC20transferFrom && tmp[2:10] != ERC20transferFrom256) {
+				if tmp == "0x" || (len(tmp) > 2 && len(tmp) <= 10) || (len(tmp) > 10 && tmp[2:10] != ethcli.ERC20transfer && tmp[2:10] != ethcli.ERC20transfer256 && tmp[2:10] != ethcli.ERC20transferFrom && tmp[2:10] != ethcli.ERC20transferFrom256) {
 					// this is an ether transfer
 					if txs[i].Value, ok = txObj["value"].(string); !ok {
 						err = types.ErrNoTrxValue
@@ -156,7 +141,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 				} else {
 					// this is a token transaction
 					if len(tmp) > 10 {
-						if tmp[2:10] == ERC20transfer || tmp[2:10] == ERC20transfer256 {
+						if tmp[2:10] == ethcli.ERC20transfer || tmp[2:10] == ethcli.ERC20transfer256 {
 							if len(tmp) >= 138 {
 								if txs[i].From, ok = txObj["from"].(string); !ok {
 									err = types.ErrNoTrxFrom
@@ -178,7 +163,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 								err = types.ErrTrxWrongLen
 								return
 							}
-						} else if tmp[2:10] == ERC20transferFrom || tmp[2:10] == ERC20transferFrom256 {
+						} else if tmp[2:10] == ethcli.ERC20transferFrom || tmp[2:10] == ethcli.ERC20transferFrom256 {
 							if len(tmp) >= 202 {
 								// From comes in "input" after 24 padded 0s, then To after 24 padded 0s
 								txs[i].From = "0x" + tmp[10+24:74]
@@ -217,7 +202,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 				}
 				// timestamp should be got from block's ts
 				// fee is gas*price but gas here is the one sent, not consumed!!
-				txs[i].Status = TrxPending // status should be got from TransactionReceipt
+				txs[i].Status = ethcli.TrxPending // status should be got from TransactionReceipt
 				// Token has to be parsed from Data
 			}
 		default:
@@ -244,7 +229,7 @@ func (e *Ethereum) GetToken(token string) (t types.Token, err error) {
 	return
 }
 
-// Send executes a transaction in the blockchain with the given parameters returning the expected fee, the transaction hash or an error otherwise.
+// Send executes a transaction in the blockchain with the given parameters returning the expected fee, the transaction hash or an error otherwise. If 'dryRun' is true, the transaction will not be sent to the blockchain but still a valid hash will be returned.
 func (e *Ethereum) Send(fromAddress, toAddress, token, amount string, data []byte, key string, priceIn uint64, dryRun bool) (fee *big.Int, hash []byte, err error) {
 
 	var price, gas uint64

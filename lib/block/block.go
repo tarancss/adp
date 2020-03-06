@@ -1,5 +1,4 @@
-// package block defines the interface required for all blockchain or network connections.
-//
+// Package block defines the interface required for all blockchain or network connections.
 package block
 
 import (
@@ -11,7 +10,7 @@ import (
 	"github.com/tarancss/adp/lib/config"
 )
 
-// Chain contains the required methods. It has been designed to be as much standard as possible, however, there may be specific blockchains or networks that would require different types or more methods.
+// Chain is an interface that contains the required methods. It has been designed to be as much standard as possible, however, there may be specific blockchains or networks that would require different types or more methods.
 type Chain interface {
 	// member-type methods
 	MaxBlocks() int // number of blocks that are controlled for orphans (uncles)
@@ -27,7 +26,7 @@ type Chain interface {
 	Get(hash string) (blk uint64, ts int32, fee uint64, status uint8, token, data []byte, to, from, amount string, err error)
 }
 
-// Init loads all the clients read from the config file to blockchains into a map
+// Init loads all the clients read from the config to blockchains into a map.
 func Init(bc []config.BlockConfig) (m map[string]Chain, err error) {
 	m = make(map[string]Chain)
 	for _, block := range bc {
@@ -45,7 +44,7 @@ func Init(bc []config.BlockConfig) (m map[string]Chain, err error) {
 	return
 }
 
-// End closes gracefully all the blockchain clients opened
+// End closes gracefully all the blockchain clients opened.
 func End(bc map[string]Chain) {
 	for _, block := range bc {
 		block.Close()

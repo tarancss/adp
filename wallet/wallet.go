@@ -1,6 +1,6 @@
-// package wallet implements the wallet microservice.
+// Package wallet implements the wallet microservice.
 //
-// This microservice implements a RESTful API for clients to interact with multiple blockchains. The full documentation of the API is provided in https://github.com/tarancss/adp/blob/rest/API.md.
+// This microservice implements a RESTful API for clients to interact with multiple blockchains. The full documentation of the API is provided in https://github.com/tarancss/adp/blob/master/API.md.
 package wallet
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/tarancss/hd"
 )
 
-// Wallet contains the data necessary to deliver the service
+// Wallet implements a wallet service.
 type Wallet struct {
 	dbtype string
 	db     store.DB               // db connection
@@ -28,7 +28,7 @@ type Wallet struct {
 	sc     chan struct{} // http server channel used for graceful shutdowns
 }
 
-// New returns a pointer to a new Wallet service
+// New returns a pointer to a new Wallet service with the given configuration.
 func New(dbtype string, dbConn store.DB, mb msg.MsgBroker, bc map[string]block.Chain, hdw *hd.HdWallet) *Wallet {
 	return &Wallet{
 		dbtype: dbtype,
@@ -39,8 +39,8 @@ func New(dbtype string, dbConn store.DB, mb msg.MsgBroker, bc map[string]block.C
 	}
 }
 
-// StopWallet shuts down the http servers implementing the RESTful API and closes gracefully the connections to message broker, monitoring service and database.
-func (w *Wallet) StopWallet() {
+// Stop shuts down the http servers implementing the RESTful API and closes gracefully the connections to message broker, monitoring service and database.
+func (w *Wallet) Stop() {
 	var err error
 	// shutdown http server
 	if w.s != nil {
@@ -62,39 +62,41 @@ func (w *Wallet) StopWallet() {
 
 	// close database
 	if w.db != nil {
-		err = db.CloseDB(w.dbtype, w.db)
+		err = db.Close(w.dbtype, w.db)
 		log.Printf("Disconnecting %v database, err:%e\n", w.dbtype, err)
 	}
 }
 
-// ManageEvents starts go routines to consume the message broker queues for events sent by the explorer service. For each connected blockchain, two channels are opened, one for transaction events, and one for errors.
+// ManageEvents starts go routines to consume the message broker queues for events sent by the explorer service. For each connected blockchain, two channels are opened, one for transaction events, and one for errors. A go routine is triggered reading for either channel to manage the events/errors.
 func (w *Wallet) ManageEvents() error {
 	// for each chain establish a process to read events from the broker queues
 	for net, _ := range w.bc {
+		// open events channel
 		var mut *sync.Mutex = new(sync.Mutex)
 		mut.Lock()
 		eveCh, errCh, err := w.mb.GetEvents(net, mut)
 		if err != nil {
 			return err
 		}
-
 		// launch request channel reader
 		go func(netName string) {
-			log.Printf("[%s] Start listening to explorer event channel", netName)
-			for eve := range eveCh {
-				log.Printf("[%s] Received event %+v", netName, eve) // we just log it to console!! XXX
-				mut.Unlock()
+			for {
+				select {
+				case eve, ok := (<-eveCh):
+					if !ok {
+						log.Printf("[%s] Stop listening to events channel", net)
+						break
+					}
+					log.Printf("[%s] Received event %+v", netName, eve) // we just log it to console!! XXX
+					mut.Unlock()
+				case e, ok := (<-errCh):
+					if !ok {
+						log.Printf("[%s] Stop listening to events channel", net)
+						break
+					}
+					log.Printf("[%s] Received error %+v", netName, e)
+				}
 			}
-			log.Printf("[%s] Stop listening to wallet request channel", netName)
-		}(net)
-
-		// launch error channel reader
-		go func(netName string) {
-			log.Printf("[%s] Start listening to err channel", netName)
-			for e := range errCh {
-				log.Printf("[%s] Received error %+v", netName, e)
-			}
-			log.Printf("[%s] Stop listening to err channel", netName)
 		}(net)
 	}
 	return nil

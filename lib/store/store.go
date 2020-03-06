@@ -14,9 +14,10 @@ type DB interface {
 	// methods for explorer service
 	LoadExplorer(string) (NetExplorer, error)
 	SaveExplorer(string, NetExplorer) error
+	DeleteExplorer(string) error
 }
 
-// Errors returned
+// Errors returned:
 var (
 	ErrAddrNotFound = errors.New("Address was not found in store")
 	ErrDataNotFound = errors.New("Data was not found in store")

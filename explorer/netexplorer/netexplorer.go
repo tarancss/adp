@@ -1,5 +1,5 @@
-// package netexplorer
-package netExplorer
+// Package netexplorer implements the exploration of block transactions for monitored addresses and adding/removing monitored addresses.
+package netexplorer
 
 import (
 	"log"
@@ -25,7 +25,7 @@ type NetExplorer struct {
 	Map    map[string]interface{} `json:"map" bson:"map"`     // Map of addresses/transactions (string) to the required information
 }
 
-//New gets the listened addresses slice and returns a NetExplorer object
+//New tries to load from DB a previously saved status of the net explorer or creates a new one with default values (start monitoring at block 1) if not present in DB. A slice of length=1 (only for one network) of addresses to monitor can be passed in 'l' and returns a NetExplorer object.
 func New(net string, max int, l []store.ListenedAddresses, db store.DB) (*NetExplorer, error) {
 	var ne NetExplorer
 	var s store.NetExplorer
@@ -59,11 +59,9 @@ func New(net string, max int, l []store.ListenedAddresses, db store.DB) (*NetExp
 func (n *NetExplorer) ScanTxs(txs []types.Trans) (r []types.Trans, err error) {
 	r = make([]types.Trans, 0, 4) // capacity = 4 is more than enough for a block!
 	var ok bool
-	// log.Printf("ScanTxs map:%+v\n", n.Map)
 	n.l.Lock()
 	defer n.l.Unlock()
 	for _, tx := range txs {
-		// log.Printf("tx From:%s To:%s\n", tx.From, tx.To)
 		if _, ok = n.Map[tx.From].(string); ok {
 			r = append(r, tx)
 		} else if _, ok = n.Map[tx.To].(string); ok {
@@ -73,14 +71,14 @@ func (n *NetExplorer) ScanTxs(txs []types.Trans) (r []types.Trans, err error) {
 	return
 }
 
-// Chained checks if the supplied hash is the last block's hash
+// Chained checks if the supplied hash is the last block's hash and so blocks are chained.
 func (n *NetExplorer) Chained(hash string) bool {
 	n.l.Lock()
 	defer n.l.Unlock()
 	return n.Bh[n.Bhi] == hash || n.Bh[n.Bhi] == ""
 }
 
-// UpdateChain updates NetExplorer fields with new block hash
+// UpdateChain updates NetExplorer fields with new block hash.
 func (n *NetExplorer) UpdateChain(hash string, maxBlocks int) {
 	n.l.Lock()
 	defer n.l.Unlock()
@@ -90,7 +88,7 @@ func (n *NetExplorer) UpdateChain(hash string, maxBlocks int) {
 	n.Bh[n.Bhi] = hash
 }
 
-// Add adds an object and its value to the monitoring map
+// Add adds an object and its value to the monitoring map.
 func (n *NetExplorer) Add(obj string, value interface{}) {
 	n.l.Lock()
 	defer n.l.Unlock()
@@ -98,7 +96,7 @@ func (n *NetExplorer) Add(obj string, value interface{}) {
 
 }
 
-// Del deletes a monitored object from the map returning its value and an ok flag.
+// Del deletes a monitored object from the map returning its value. 'ok' is returned as false if the object was not being monitored.
 func (n *NetExplorer) Del(obj string) (value interface{}, ok bool) {
 	n.l.Lock()
 	defer n.l.Unlock()
@@ -108,7 +106,7 @@ func (n *NetExplorer) Del(obj string) (value interface{}, ok bool) {
 
 }
 
-// ToStore returns a store.NetExplorer struct to be saved to store
+// ToStore returns a store.NetExplorer struct to be saved to store.
 func (n *NetExplorer) ToStore() store.NetExplorer {
 	return store.NetExplorer{
 		Block: n.Block,
@@ -118,7 +116,7 @@ func (n *NetExplorer) ToStore() store.NetExplorer {
 	}
 }
 
-// FromStore loads the NetExplorer with the values read from store
+// FromStore loads the NetExplorer with the values read from store.
 func (n *NetExplorer) FromStore(s store.NetExplorer) {
 	n.Block = s.Block
 	n.Bh = s.Bh
@@ -126,21 +124,21 @@ func (n *NetExplorer) FromStore(s store.NetExplorer) {
 	n.Map = s.Map
 }
 
-// Stop sets status to STOP
+// Stop sets status to STOP.
 func (n *NetExplorer) Stop() {
 	n.l.Lock()
 	n.status = STOP
 	n.l.Unlock()
 }
 
-// Start sets status to WORK
+// Start sets status to WORK.
 func (n *NetExplorer) Start() {
 	n.l.Lock()
 	n.status = WORK
 	n.l.Unlock()
 }
 
-// Status returns the current NetExplorer status
+// Status returns the current NetExplorer status.
 func (n *NetExplorer) Status() int {
 	n.l.Lock()
 	defer n.l.Unlock()

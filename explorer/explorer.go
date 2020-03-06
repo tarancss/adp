@@ -1,4 +1,4 @@
-// package explorer implements the blockchain explorer microservice. The explorer scans transactions in the networks mined blocks and send events when a monitored address or account is involved in a transaction.
+// Package explorer implements the blockchain explorer microservice. The explorer scans transactions in the networks mined blocks and sends events when a monitored address or account is involved in a transaction.
 package explorer
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/tarancss/adp/lib/store"
 )
 
-// Explorer servive contains the data necessary to deliver the service
+// Explorer implements an explorer service
 type Explorer struct {
 	dbtype string
 	db     store.DB
@@ -38,8 +38,8 @@ func New(dbtype string, db store.DB, mb msg.MsgBroker, bc map[string]block.Chain
 // Explore starts a go routine for each network available. The exploration of each network is controled by a NetExplorer (see package explorer/netexplorer for details) and contains a map of the addresses being monitored and the current status of scanned blocks. The explorer consumes wallet requests to monitor new addresses. In case of graceful termination, the explorer will wait for all the blocks being scanned to finish and sending the events if any.
 func (e *Explorer) Explore() (ret chan string) {
 	ret = make(chan string, 1)
-	// channels to wait for chain explorers
-	w := make([]chan string, 0, len(e.bc))
+	// channel to wait for chain explorers
+	w := make(chan string, len(e.bc))
 	var err error
 	for net, _ := range e.bc {
 		// get listened addresses from DB
@@ -52,30 +52,26 @@ func (e *Explorer) Explore() (ret chan string) {
 			log.Printf("[%s] No listened addresses to explore in DB.", net)
 		}
 		// set listened address map
-		// TODO monitor transactions!!!
+		// TODO: extra functionality - monitor transactions!!!
 		if e.nem[net], err = ne.New(net, e.bc[net].MaxBlocks(), addrs, e.db); err != nil {
 			log.Printf("[%s] netexplorer.New failed:%e", net, err)
 			continue
 		}
-
-		// listen for wallet requests, if there are pending requests in the broker queues, they will be processes to DB so getAddresses starts with all the data loaded
+		// listen for wallet requests, if there are pending requests in the broker queues, they will be processed to DB so getAddresses starts with all the data loaded
 		if err = e.ManageWalletRequests(net); err != nil {
 			log.Printf("[%s] Cannot consume wallet requests from broker, err:%e", net, err)
 			continue
 		}
 		// Explore
-		w = append(w, e.ExploreChain(net))
+		e.ExploreChain(net, w)
 	}
-
 	// routine to wait for all chains to complete exploring...
 	go func() {
-		for i, ch := range w {
-			log.Printf("Explore, waiting for channel %d/%d", i+1, len(w))
-			log.Printf("Explore, channel %d/%d: %s", i+1, len(w), <-ch)
+		for i := 1; i < len(e.bc)+1; i++ {
+			log.Printf("Explore, channel %d/%d returned: %s", i, len(e.bc), <-w)
 		}
 		ret <- "Done!"
 	}()
-
 	return
 }
 
@@ -86,13 +82,13 @@ func (e *Explorer) StopExplorer() {
 	}
 }
 
-// ExploreChain starts a network explorer go routine. Returns a channel used to control its graceful termination. When a network does not have any monitored addresses, the explorer will keep waiting and will not scan any mined blocks.
-func (e *Explorer) ExploreChain(net string) (ret chan string) {
+// ExploreChain starts a network explorer go routine for blockchain named 'net'. When the routine ends, returns its error status via the 'ret' channel given so the calling routine can control graceful termination.
+// When a network does not have any monitored addresses, the explorer will keep waiting and will not scan any mined blocks.
+func (e *Explorer) ExploreChain(net string, ret chan string) {
 	var err error
 	var c block.Chain = e.bc[net]
 	var nexp *ne.NetExplorer = e.nem[net]
 
-	ret = make(chan string, 1)
 	log.Printf("[%s] Exploring at block %d... ", net, nexp.Block)
 
 	go func() {
@@ -106,7 +102,7 @@ func (e *Explorer) ExploreChain(net string) (ret chan string) {
 		for nexp.Status() == ne.WORK {
 			if len(nexp.Map) == 0 {
 				// wait until there is something to explore for
-				// log.Printf("[%s] Waiting for something to explore", net)
+				log.Printf("[%s] Waiting for something to explore", net)
 				time.Sleep(time.Duration(c.AvgBlock()) * time.Second)
 			} else {
 				// get next block's data
@@ -150,11 +146,10 @@ func (e *Explorer) ExploreChain(net string) (ret chan string) {
 						break
 					}
 				} else {
-					// FindLastSync
+					// TODO: extra functionality FindLastSync
 					log.Printf("[%s] Block %d is not chained!! \n%+v\n%d", net, nexp.Block+1, nexp.Bh, nexp.Bhi)
 					nexp.Stop()
 					return
-					// TODO
 				}
 			}
 		}
@@ -162,10 +157,9 @@ func (e *Explorer) ExploreChain(net string) (ret chan string) {
 	return
 }
 
-// ManageWalletRequests starts a go routine for each blockchain available to receive wallet requests for addresses to be monitored.
+// ManageWalletRequests starts a go routine to receive and manage wallet requests for objects (addresses, ...) to be monitored for the blockchain named 'net'.
 func (e *Explorer) ManageWalletRequests(net string) error {
 	var mut *sync.Mutex = new(sync.Mutex)
-
 	mut.Lock()
 	reqCh, errCh, err := e.mb.GetReqs(net, mut)
 	if err != nil {
@@ -176,51 +170,53 @@ func (e *Explorer) ManageWalletRequests(net string) error {
 	// launch request channel reader
 	go func() {
 		log.Printf("[%s] Start listening to wallet request channel", net)
-		for req := range reqCh {
-			log.Printf("Received request %+v", req)
-			// validate request
-			if req.Net != net || (req.Type != mtype.ADDRESS && req.Type != mtype.TX) || len(req.Obj) == 0 || (req.Act != mtype.LISTEN && req.Act != mtype.UNLISTEN) {
-				log.Printf("[%s] Request has wrong net %s, wrong type %d, missing objext %s or wrong action %d", net, req.Net, req.Type, req.Obj, req.Act)
-			}
-			// process object
-			if req.Type == mtype.ADDRESS {
-				a := store.Address{Addr: req.Obj}
-				if req.Act == mtype.LISTEN {
-					// save it to DB
-					if _, err = e.db.AddAddress(a, net); err != nil {
-						log.Printf("[%s] Error adding WalletReq address to DB %e", net, err)
-					}
-					// include it in NetExplorer
-					nexp.Add(req.Obj, "listen")
-					log.Printf("[%s] Added object %s to NetExplorer %+v", net, req.Obj, *nexp)
-				} else {
-					// delete from NetExplorer
-					if _, ok := nexp.Del(req.Obj); !ok {
-						log.Printf("[%s] Error deleting WalletReq address %s from NetExplorer. Not found. Ignoring...", net, req.Obj)
-					}
-					// delete from DB
-					if err = e.db.RemoveAddress(a, net); err != nil {
-						log.Printf("[%s] Error deleting WalletReq address from DB %e", net, err)
-					}
-					log.Printf("[%s] Removed object %s from NetExplorer %+v", net, req.Obj, *nexp)
-
+		for {
+			select {
+			case req, ok := (<-reqCh):
+				if !ok {
+					log.Printf("[%s] Stop listening to wallet request channel", net)
+					break
 				}
-			} else if req.Type == mtype.TX {
-				log.Printf("Un/listen to transaction TODO!!!!")
+				log.Printf("Received request %+v", req)
+				// validate request
+				if req.Net != net || (req.Type != mtype.ADDRESS && req.Type != mtype.TX) || len(req.Obj) == 0 || (req.Act != mtype.LISTEN && req.Act != mtype.UNLISTEN) {
+					log.Printf("[%s] Request has wrong net %s, wrong type %d, missing objext %s or wrong action %d", net, req.Net, req.Type, req.Obj, req.Act)
+				}
+				// process object
+				if req.Type == mtype.ADDRESS {
+					a := store.Address{Addr: req.Obj}
+					if req.Act == mtype.LISTEN {
+						// save it to DB
+						if _, err = e.db.AddAddress(a, net); err != nil {
+							log.Printf("[%s] Error adding WalletReq address to DB %e", net, err)
+						}
+						// include it in NetExplorer
+						nexp.Add(req.Obj, "listen")
+						log.Printf("[%s] Added object %s to NetExplorer %+v", net, req.Obj, *nexp)
+					} else {
+						// delete from NetExplorer
+						if _, ok := nexp.Del(req.Obj); !ok {
+							log.Printf("[%s] Error deleting WalletReq address %s from NetExplorer. Not found. Ignoring...", net, req.Obj)
+						}
+						// delete from DB
+						if err = e.db.RemoveAddress(a, net); err != nil {
+							log.Printf("[%s] Error deleting WalletReq address from DB %e", net, err)
+						}
+						log.Printf("[%s] Removed object %s from NetExplorer %+v", net, req.Obj, *nexp)
+
+					}
+				} else if req.Type == mtype.TX {
+					log.Printf("Un/listen to transaction TODO!!!!")
+				}
+				mut.Unlock()
+			case e, ok := (<-errCh):
+				if !ok {
+					log.Printf("[%s] Stop listening to wallet request channel", net)
+					break
+				}
+				log.Printf("[%s] Received error %+v", net, e)
 			}
-			mut.Unlock()
 		}
-		log.Printf("[%s] Stop listening to wallet request channel", net)
 	}()
-
-	// launch error channel reader
-	go func() {
-		log.Printf("[%s] Start listening to err channel", net)
-		for e := range errCh {
-			log.Printf("[%s] Received error %+v", net, e)
-		}
-		log.Printf("[%s] Stop listening to err channel", net)
-	}()
-
 	return err
 }

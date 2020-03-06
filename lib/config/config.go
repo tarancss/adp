@@ -4,7 +4,7 @@
 // - a valid JSON config file (see cmd/conf.json for a sample) and then by
 //
 // - OS ENV variables: prefixed with ADP_ (ie. ADP_DBTYPE, ADP_DBCONN, ...). All OS ENV variables should be valid strings, except for ADP_BLOCKCHAINS which should be a string with a valid JSON format. For example:
-// # export ADP_BLOCKCHAINS='[{"name":"ropsten","node":"https://ropsten.infura.io/NoPSZJipdt0sqtNlaJq5","secret":"","maxBlocks":8}]'
+// # export ADP_BLOCKCHAINS='[{"name":"ropsten","node":"http://localhost:8545","secret":"","maxBlocks":8}]'
 package config
 
 import (
@@ -25,9 +25,7 @@ var (
 	MbTypeDefault    = "amqp"
 	MbConnDefault    = "amqp://guest:guest@localhost:5672"
 	BcDefault        = []BlockConfig{
-		BlockConfig{Name: "ropsten", Node: "https://ropsten.infura.io/NoPSZJipdt0sqtNlaJq5", Secret: "", MaxBlocks: 8},
-		BlockConfig{Name: "rinkeby", Node: "https://rinkeby.infura.io/NoPSZJipdt0sqtNlaJq5", Secret: "", MaxBlocks: 8},
-		BlockConfig{Name: "mainNet", Node: "https://mainnet.infura.io/NoPSZJipdt0sqtNlaJq5", Secret: "", MaxBlocks: 16},
+		BlockConfig{Name: "ropsten", Node: "http://localhost:8545", Secret: "", MaxBlocks: 8},
 	}
 	SeedDefault = "642ce4e20f09c9f4d285c2b336063eaafbe4cb06dece8134f3a64bdd8f8c0c24df73e1a2e7056359b6db61e179ff45e5ada51d14f07b30becb6d92b961d35df4"
 )
@@ -55,7 +53,7 @@ type ServiceConfig struct {
 	Seed            string        `json:"hdseed"`
 }
 
-// ExtractConfiguration reads from the given JSON filename and returns the ServiceConfig or an error otherwise.
+// ExtractConfiguration reads from the given JSON filename if provided, then override any value with OS ENV variables and returns the ServiceConfig or an error otherwise.
 func ExtractConfiguration(filename string) (ServiceConfig, error) {
 	conf := ServiceConfig{
 		DBTypeDefault,

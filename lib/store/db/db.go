@@ -12,7 +12,7 @@ const (
 	POSTGRES string = "postgresql"
 )
 
-// NewDB returns a new database connection according to the options (database type)
+// NewDB returns a new database connection according to the options (database type).
 func New(options, connection string) (store.DB, error) {
 
 	switch options {
@@ -25,8 +25,8 @@ func New(options, connection string) (store.DB, error) {
 	return nil, nil
 }
 
-// CloseDB gracefully closes the database connection.
-func CloseDB(options string, dh store.DB) error {
+// Close gracefully closes the database connection.
+func Close(options string, dh store.DB) error {
 
 	switch options {
 	case MONGODB:

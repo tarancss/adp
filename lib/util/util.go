@@ -1,4 +1,4 @@
-// util contains helper functions used around the code
+// Package util contains helper functions used around the code.
 package util
 
 // In returns true if s is found in ss, false otherwise

@@ -1,4 +1,4 @@
-// Package amqp implements the message broker interface for AMQP compliant brokers (ie RabbitMQ)
+// Package amqp implements the message broker interface for AMQP compliant brokers (ie RabbitMQ).
 package amqp
 
 import (
@@ -53,7 +53,7 @@ func (r *Amqp) Setup(x interface{}) error {
 	return err
 }
 
-// Close terminages gracefully the connection to the AMQP message broker
+// Close terminages gracefully the connection to the AMQP message broker. It will close also all channel consumers ending the go routines of GetReqs and GetEvents.
 func (r *Amqp) Close() error {
 	if r.ch != nil {
 		if err := r.ch.Close(); err != nil {
@@ -65,7 +65,7 @@ func (r *Amqp) Close() error {
 	return r.conn.Close()
 }
 
-// SendTrans publishes transaction events to the "ee" exchange
+// SendTrans publishes transaction events to the "ee" exchange.
 func (r *Amqp) SendTrans(net string, txs []types.Trans) (err error) {
 	for _, t := range txs {
 		// marshal to JSON
@@ -93,7 +93,7 @@ func (r *Amqp) SendTrans(net string, txs []types.Trans) (err error) {
 	return
 }
 
-// SendRequest publishes a new wallet request to the "wr" exchange
+// SendRequest publishes a new wallet request to the "wr" exchange.
 func (r *Amqp) SendRequest(net string, wr mtype.WalletReq) (err error) {
 	// marshal to JSON
 	var jsonDoc []byte

@@ -21,7 +21,7 @@ import (
 	"github.com/tarancss/hd"
 )
 
-// TxReq transaction request data required to send transactions to the networks. Wallet, Change and Id correspond to the HDwallet address fro which the transaction will be sent.
+// TxReq transaction request data required to send transactions to the networks. Wallet, Change and Id correspond to the HDwallet address from which the transaction will be sent.
 type TxReq struct {
 	Wallet uint32      `json:"wallet"`
 	Change uint8       `json:"change"`
@@ -30,12 +30,13 @@ type TxReq struct {
 	Tx     types.Trans `json:"tx"`  // transaction details
 }
 
-// DryRun is a bool used to control sending transactions to the blockchain. When true, it will not send transactions but just do a dry run
+// DryRun is a bool used to control sending transactions to the blockchain. When true, it will not send transactions but just do a dry run.
 var DryRun bool = false
 
-// Errors returned to client requests
+// Errors returned to client requests:
 var (
 	ErrBadMethod  = errors.New("Bad method in request")
+	ErrBadrequest = errors.New("Bad request")
 	ErrChange     = errors.New("Invalid change: has to be either 0 /1 or external / change")
 	ErrMissingNet = errors.New("Undefined blockchain - missing query: ?net=<blockchain>")
 	ErrNoAddr     = errors.New("Undefined address - missing in uri")
@@ -45,8 +46,8 @@ var (
 
 // Response defines the data structure returned to the client making the http request.
 type Response struct {
-	Body  interface{} `json:"body"`
-	Error string      `json:"error,omitempty"`
+	Body  string `json:"body"`
+	Error string `json:"error,omitempty"`
 }
 
 // homeHandler just replies a welcome message to the client.
@@ -65,16 +66,17 @@ func (h *Wallet) homeHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Wallet) networksHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var res Response
-	var pl []string
+	var pl []string = []string{}
 
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			res.Body = pl
+			tmp, _ := json.Marshal(pl)
+			res.Body = string(tmp)
 		}
 		// log request and tx hash
 		log.Printf("httpreq from %v %s res:%+v err:%e\n", r.RemoteAddr, r.RequestURI, pl, err)
@@ -90,9 +92,9 @@ func (h *Wallet) networksHandler(w http.ResponseWriter, r *http.Request) {
 
 // addrBalance struct used to get balances of addresses from the networks
 type addrBalance struct {
-	Net string `json:"net"`          // blockchain name
-	Bal string `json:"bal"`          // balance of blockchain currency of address
-	Tok string `json"tok,omitempty"` // balance of token of address
+	Net string `json:"net"`           // blockchain name
+	Bal string `json:"bal"`           // balance of blockchain currency of address
+	Tok string `json:"tok,omitempty"` // balance of token of address
 }
 
 // addrBalHandler replies the balance of the address requested. If a token is specified, it will also reply the balance of the address in tokens for all the networks specified in the query.
@@ -104,11 +106,12 @@ func (h *Wallet) addrBalHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			res.Body = bals
+			tmp, _ := json.Marshal(bals)
+			res.Body = string(tmp)
 		}
 		// log request and tx hash
 		log.Printf("httpreq from %v %s bals:%+v err:%e\n", r.RemoteAddr, r.RequestURI, bals, err)
@@ -127,7 +130,6 @@ func (h *Wallet) addrBalHandler(w http.ResponseWriter, r *http.Request) {
 		var ethBal, tokBal *big.Int = new(big.Int), new(big.Int)
 		var tok string = ""
 		var nets []string
-		// var ok bool
 		if r.Form != nil {
 			// get token
 			if stok, ok := r.Form["tok"]; ok {
@@ -167,7 +169,7 @@ func (h *Wallet) hdAddrHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusOK)
@@ -194,6 +196,9 @@ func (h *Wallet) hdAddrHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Wallet %s could not be decoded into a valid wallet number", tmp[0])
 			return
 		}
+	} else {
+		err = ErrBadrequest
+		return
 	}
 	// get change
 	tmp, ok = r.Form["change"]
@@ -207,6 +212,9 @@ func (h *Wallet) hdAddrHandler(w http.ResponseWriter, r *http.Request) {
 			err = ErrChange
 			return
 		}
+	} else {
+		err = ErrBadrequest
+		return
 	}
 	// get id
 	tmp, ok = r.Form["id"]
@@ -215,6 +223,9 @@ func (h *Wallet) hdAddrHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Id %s could not be decoded into a valid id number", tmp[0])
 			return
 		}
+	} else {
+		err = ErrBadrequest
+		return
 	}
 	// get HD address
 	if addr, _, _, err = h.hd.Address(uint32(wallet), change, uint32(id)); err != nil {
@@ -231,10 +242,10 @@ func (h *Wallet) listenHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
-			res.Body = id
+			res.Body = string(id)
 			w.WriteHeader(http.StatusAccepted)
 		}
 		// log request
@@ -277,7 +288,7 @@ func (h *Wallet) listenHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// getAddrHandler replies the client with the addresses being monitored for the specified network. If not network is queried, addresses from all the networks are returned.
+// getAddrHandler replies the client with the addresses being monitored for the specified network. If no network is queried, addresses from all the networks are returned.
 func (h *Wallet) getAddrHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var res Response
@@ -286,10 +297,11 @@ func (h *Wallet) getAddrHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
-			res.Body = addrs
+			tmp, _ := json.Marshal(addrs)
+			res.Body = string(tmp)
 			w.WriteHeader(http.StatusAccepted)
 		}
 		// log request
@@ -322,11 +334,16 @@ func (h *Wallet) sendHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
-			w.WriteHeader(http.StatusBadRequest)
+			res.Error = fmt.Sprintf("%s", err)
+			if err != ErrNoNet {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
 		} else {
 			w.WriteHeader(http.StatusAccepted)
-			res.Body = txReq.Tx
+			tmp, _ := json.Marshal(txReq.Tx)
+			res.Body = string(tmp)
 		}
 		// log request and tx hash
 		log.Printf("httpreq from %v %s hash:0x%x err:%e\n", r.RemoteAddr, r.RequestURI, hash, err)
@@ -338,7 +355,7 @@ func (h *Wallet) sendHandler(w http.ResponseWriter, r *http.Request) {
 	// get request
 	if err = json.NewDecoder(r.Body).Decode(&txReq); err != nil {
 		log.Printf("Error decoding transaction request %+v\n", r.Body)
-		panic(err)
+		return
 	}
 
 	var data, addr, key []byte
@@ -356,10 +373,6 @@ func (h *Wallet) sendHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(txReq.Tx.Data) > 0 {
-		// if data, err = hex.DecodeString(txReq.Tx.Data); err != nil {
-		// 	log.Printf("Error parsing Data in transaction request:%s\n", txReq.Tx.Data)
-		// 	return
-		// }
 		data = []byte(txReq.Tx.Data)
 	} else {
 		data = nil
@@ -386,11 +399,12 @@ func (h *Wallet) txHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// reply to requester accordingly
 		if err != nil {
-			res.Error = fmt.Sprintf("%e", err)
+			res.Error = fmt.Sprintf("%s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			res.Body = tx
+			tmp, _ := json.Marshal(tx)
+			res.Body = string(tmp)
 		}
 		// log request and tx hash
 		log.Printf("httpreq from %v %s tx:%+v err:%e\n", r.RemoteAddr, r.RequestURI, tx, err)

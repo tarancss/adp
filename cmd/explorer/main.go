@@ -1,4 +1,4 @@
-// package main: explorer service
+// Package main: explorer service.
 //
 package main
 
@@ -43,6 +43,7 @@ func main() {
 			panic(err)
 		}
 	}
+	defer db.Close(conf.DbType, dbConn)
 
 	// load all blockchains
 	var blocks map[string]block.Chain

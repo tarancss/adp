@@ -1,11 +1,11 @@
-// Defines common blockchain types
+// Package types common blockchain types.
 package types
 
 import (
 	"errors"
 )
 
-// Token is a blockchain asset
+// Token is a blockchain asset.
 type Token struct {
 	Name     string      `json:"name"`
 	Symbol   string      `json:"symbol"`
