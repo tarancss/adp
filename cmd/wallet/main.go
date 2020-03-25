@@ -44,7 +44,7 @@ func main() {
 		if dbConn, err = db.New(conf.DbType, conf.DbConn); err != nil {
 			panic(err)
 		}
-		log.Printf("Connecting to database:%+v\n", conf.DbConn, err)
+		log.Printf("Connecting to database:%+v\n", conf.DbConn)
 	}
 
 	// load all blockchains

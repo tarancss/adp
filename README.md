@@ -14,6 +14,7 @@ adp enables users to interact with multiple blockchains via a single, easy-to-us
 - [Configuring the microservices](#configuring-the-microservices)
 - [Using the API from another golang program](#using-the-api-from-another-golang-program)
 - [Testing adp](#testing-adp)
+- [Deploying adp to Kubernetes](#deploying-adp-to-kubernetes)
 
 #### What is adp?
 
@@ -207,3 +208,39 @@ package **lib/msg/amqp**: tests sending and receiving messages for both microser
 package **explorer**: tests that wallet requests are managed properly.
 
 package **wallet**: tests exposed API.
+
+#### Deploying adp to Kubernetes
+Running adp in a Kubernetes cluster is a much better alternative than Docker if you want adp for a real production use case. Kubernetes offers loads of functionality to ensure your microservices keep running and enable you to scale your infrastructure to manage workload.
+
+Here I provide 3 manifests to deploy adp in a kubernetes cluster.
+
+###### adp_ingress.yaml
+This manifest creates an Ingress object in your kubernetes installation. It exposes your backend service (wallet microservice) on http default port 80, so that you can access your adp API from your host. If you require HTTPS then add the https port 443 in the manifest.
+
+Apply the manifest: `kubectl apply -f adp_ingress.yaml`
+
+Once Kubernetes has set up the Ingress, obtain the IP address with `kubectl get ingress`. There you will have the IP address leading to the wallet service.
+Edit your /etc/hosts file and add a line such as this:
+`<ip address> www.my-adp.com` so that your host resolves the url to the ingress point for Kubernetes. Kubernetes will then route the requests to the wallet service in port 3030 as specified in the wallet microservice configuration. Then you can use adp using for example: `curl http://www.my-adp.com`
+
+###### adp_ser.yaml
+This manifest contains three service definitions. These allow the microservices resolve their MongoDB and RabbitMQ dependencies as well as exposing the wallet microservice to port 3030 externally to the ingress object.
+
+Apply the manifest: `kubectl apply -f adp_ser.yaml`
+
+###### adp_dep.yaml
+This manifest declares the following objects:
+
+- mongo: An object (pod) that runs the mongoDB image with a 10Mb storage volume so that data is persisted. You may update the storage line in the volumeClaimTemplate to increase the volume's capacity according to your needs.
+- rmq: A pod that runs the rabbitMQ image also with a 10Mb storage volume to ensure exchanges, queues and messages are persisted.
+- wallet: Two replicated pods that run the image for the wallet microservice both listening on port 3030. The mongoDB and rabbitMQ hostnames are passed as environment variables in the definition so the kubernetes DNS will resolve them to the corresponding IP address of the containers running them.
+- explorer: A pod that runs the image for the explorer microservice. Like the wallet, MongoDB and RabbitMQ hostnames are passed via env variables.
+
+###### Scaling adp
+You will have noted that we have set up two replicas for the wallet microservice but just one (the default) for the mongo, rabbitMQ and explorer services.
+
+The rationale is that the wallet it is the most likely service to require scaling. If many users send API requests, then you may need to provide further replicas to cope with the workload. You could then update and re-apply the manifest and Kubernetes will automatcally start new containers running the wallet. Kubernetes will loadbalance work across all the replicas to ensure application stability. 
+
+The explorer deployment just specifies one replica, this is because the explorer's design does not allow more than one container/process per blockchain. In fact, one explorer microservice should be able to be configured to explore many networks as most of them only issue new blocks every few seconds. So scaling the explorer service is about having different explorers configured with fewer blockchains rather than increasing the number of replicas. For this, we would add a new deployment to the adp_dep.yaml manifest and pass an env variable with the required blockchain config. Automating this task is out of scope of this document.
+
+The mongo and rabbitMQ services are defined as StatefulSets so that the data is persisted in the storage volumes. Both the wallet and explorer services make a rather reduced use of both services so just one replica is enough. However, if needed, these could be configured to have more replicas. This is also out of the scope of this document.

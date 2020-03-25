@@ -1,0 +1,40 @@
+# define a service to expose the mongoDB pods to the explorer and wallet microservices
+apiVersion: v1
+kind: Service
+metadata:
+  name: adp-mongo
+spec:
+  clusterIP: None   # define it as a Headless service
+  selector:
+    app: adp-mongo
+  ports:
+  - port: 27017
+    name: http
+---
+# define a service to expose the rabbitMQ pods to the explorer and wallet microservices
+apiVersion: v1
+kind: Service
+metadata:
+  name: adp-rmq
+spec:
+  clusterIP: None   # define it as a Headless service
+  selector:
+    app: adp-rmq
+  ports:
+  - port: 5672
+    name: amqp
+  - port: 15672
+    name: http
+---
+# define a NodePort service to expose the wallet microservice to the host
+apiVersion: v1
+kind: Service
+metadata:
+  name: adp-wallet
+spec:
+  type: NodePort
+  selector:
+    app: adp-wallet
+  ports:
+  - port: 3030
+    name: http    

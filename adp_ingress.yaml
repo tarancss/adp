@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: adp
+spec:
+  rules:
+    - host: www.my-adp.com
+      http:
+        paths:
+        - backend:
+            serviceName: adp-wallet
+            servicePort: 3030
