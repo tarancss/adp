@@ -12,16 +12,24 @@ import (
 // - UpdateChain / Chained: make sure the revolving slice Bh and index Bhi behave correctly.
 // - Add/Del objects to the monitoring map: test the monitoring map.
 func TestNE(t *testing.T) {
-
 	// connect to DB
-	dbUri := "mongodb://localhost:27017"
-	s, err := db.New(db.MONGODB, dbUri)
+	dbURI := "mongodb://localhost:27017"
+
+	s, err := db.New(db.MONGODB, dbURI)
+	if err != nil {
+		t.Errorf("cannot connect to DB: %e", err)
+
+		return
+	}
 
 	// create a netexplorer
 	var ne *NetExplorer
+
 	var maxBlocks int = 4
 	if ne, err = New("net", maxBlocks, nil, s); err != nil { // listenmap = nil
 		t.Errorf("Error creating NetExplorer: %e", err)
+
+		return
 	}
 
 	// Test UpdateChain/Chained
@@ -38,16 +46,19 @@ func TestNE(t *testing.T) {
 		[]interface{}{"hash7", true, "hash8"},
 		[]interface{}{"hash8", true, "hash9"},
 	}
+
 	for _, ts := range tsChained {
 		if ne.Chained(ts.([]interface{})[0].(string)) != ts.([]interface{})[1].(bool) {
 			t.Errorf("Previous hash error at %+v", ts)
 		}
+
 		if ts.([]interface{})[1].(bool) {
 			ne.UpdateChain(ts.(([]interface{}))[2].(string), maxBlocks)
 		}
 	}
 	// check the final result
-	if ne.Block != 9 || ne.Bhi != 1 || ne.Bh[0] != "hash8" || ne.Bh[1] != "hash9" || ne.Bh[2] != "hash6" || ne.Bh[3] != "hash7" {
+	if ne.Block != 9 || ne.Bhi != 1 || ne.Bh[0] != "hash8" || ne.Bh[1] != "hash9" || ne.Bh[2] != "hash6" ||
+		ne.Bh[3] != "hash7" {
 		t.Errorf("error ne:%+v", ne)
 	}
 
@@ -64,15 +75,16 @@ func TestNE(t *testing.T) {
 		[]interface{}{"add", "object4", "value4"},
 		[]interface{}{"del", "object5", "", false},
 	}
-	var val interface{}
-	var ok bool
+
 	for _, ts := range tsAddGet {
 		if ts.([]interface{})[0] == "add" {
 			ne.Add(ts.([]interface{})[1].(string), ts.([]interface{})[2])
 		} else {
-			if val, ok = ne.Del(ts.([]interface{})[1].(string)); !ok {
+			val, ok := ne.Del(ts.([]interface{})[1].(string))
+			if !ok {
 				val = ""
 			}
+
 			if val.(string) != ts.([]interface{})[2].(string) || ok != ts.([]interface{})[3].(bool) {
 				t.Errorf("Error with %+v", ts)
 			}

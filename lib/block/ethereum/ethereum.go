@@ -17,14 +17,15 @@ type Ethereum struct {
 	mb int
 }
 
-// Init returns a connection to an ethereum node, using secret if necessary for authentication. maxBlocks is required to indicate how many blocks will be taken into account for uncle management.
+// Init returns a connection to an ethereum node, using secret if necessary for authentication. maxBlocks is required
+// to indicate how many blocks will be taken into account for uncle management.
 func Init(node, secret string, maxBlocks int) (*Ethereum, error) {
-	var c *ethcli.EthCli
-	var err error
-	if c = ethcli.Init(node, secret); c == nil {
-		err = errors.New("Cannot connect to ethereum blockchain in" + node)
+	c := ethcli.Init(node, secret)
+	if c == nil {
+		return nil, errors.New("cannot connect to ethereum blockchain in" + node)
 	}
-	return &Ethereum{c: c, mb: maxBlocks}, err
+
+	return &Ethereum{c: c, mb: maxBlocks}, nil
 }
 
 // MaxBlocks returns how many blocks will be taken into account for uncle management.
@@ -34,7 +35,7 @@ func (e *Ethereum) MaxBlocks() int {
 
 // AvgBlock returns the average time to mine a block in seconds.
 func (e *Ethereum) AvgBlock() int {
-	return 15 // we could put this in the config file...
+	return 15 //nolint:gomnd // we could put this in the config file...
 }
 
 // Close ends a connection.
@@ -42,62 +43,73 @@ func (e *Ethereum) Close() {
 	e.c.End()
 }
 
-// Balance loads the ether balance, and the token balance if specified, onto the provided big.Int pointers, or error otherwise.
+// Balance loads the ether balance, and the token balance if specified, onto the provided big.Int pointers, or error
+// otherwise.
 func (e *Ethereum) Balance(address, token string, ethBal, tokBal *big.Int) error {
 	return e.c.GetBalance(address, token, ethBal, tokBal)
 }
 
 // GetBlock returns in response the block number requested. If full, it provides all the details of the transactions.
 func (e *Ethereum) GetBlock(block uint64, full bool, response interface{}) (err error) {
-	if err = e.c.GetBlockByNumber(block, full, response.(*map[string]interface{})); err == ethcli.ErrNoBlock {
+	if err = e.c.GetBlockByNumber(block, full, response.(*map[string]interface{})); errors.Is(err, ethcli.ErrNoBlock) {
 		err = types.ErrNoBlock
 	}
+
 	return
 }
 
 // DecodeBlock returns a struct with the values from the block data. It is used after a call to GetBlock.
-func (e *Ethereum) DecodeBlock(t interface{}) (b types.Block, err error) {
+func (e *Ethereum) DecodeBlock(t interface{}) (types.Block, error) {
 	m, ok := t.(map[string]interface{})
 	if !ok {
-		err = types.ErrBlockDecode
-		return
+		return types.Block{}, types.ErrBlockDecode
 	}
-	if b.Hash, ok = m["hash"].(string); !ok {
-		err = types.ErrNoHash
-		return
+
+	hash, ok := m["hash"].(string)
+	if !ok {
+		return types.Block{}, types.ErrNoHash
 	}
-	if b.PHash, ok = m["parentHash"].(string); !ok {
-		err = types.ErrNoParentHash
-		return
+
+	pHash, ok := m["parentHash"].(string)
+	if !ok {
+		return types.Block{}, types.ErrNoParentHash
 	}
-	if b.Number, ok = m["number"].(string); !ok {
-		err = types.ErrNoBlockNumber
-		return
+
+	number, ok := m["number"].(string)
+	if !ok {
+		return types.Block{}, types.ErrNoBlockNumber
 	}
-	if b.Ts, ok = m["timestamp"].(string); !ok {
-		err = types.ErrNoTs
-		return
+
+	ts, ok := m["timestamp"].(string)
+	if !ok {
+		return types.Block{}, types.ErrNoTS
 	}
-	return
+
+	return types.Block{Hash: hash, PHash: pHash, Number: number, TS: ts}, nil
 }
 
 // DecodeTxs returns a slice of transactions from the block data. It is used after a call to GetBlock.
 func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 	var txList []interface{}
+
 	var txObj map[string]interface{}
 
 	m, ok := t.(map[string]interface{})
 	if !ok {
 		err = types.ErrNoTrx
+
 		return
 	}
+
 	if txList, ok = m["transactions"].([]interface{}); !ok {
 		err = types.ErrNoTrx
+
 		return
 	}
 
 	if len(txList) > 0 {
 		txs = make([]types.Trans, len(txList))
+
 		switch txList[0].(type) {
 		case string:
 			for i := 0; i < len(txList); i++ {
@@ -109,35 +121,48 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 				txObj = txList[i].(map[string]interface{})
 				if txs[i].Block, ok = txObj["blockNumber"].(string); !ok {
 					err = types.ErrNoBlockNumber
+
 					return
 				}
+
 				if txs[i].Hash, ok = txObj["hash"].(string); !ok {
 					err = types.ErrNoTrxHash
+
 					return
 				}
+
 				if txs[i].To, ok = txObj["to"].(string); !ok {
 					continue // contract creation, so we dont care about this transaction's details
 				}
 				// input
 				var tmp string
+
 				if tmp, ok = txObj["input"].(string); !ok {
-					println("No input found!!!")
 					err = types.ErrNoTrxInput
+
 					return
 				}
-				if tmp == "0x" || (len(tmp) > 2 && len(tmp) <= 10) || (len(tmp) > 10 && tmp[2:10] != ethcli.ERC20transfer && tmp[2:10] != ethcli.ERC20transfer256 && tmp[2:10] != ethcli.ERC20transferFrom && tmp[2:10] != ethcli.ERC20transferFrom256) {
+
+				if tmp == "0x" || (len(tmp) > 2 && len(tmp) <= 10) ||
+					(len(tmp) > 10 &&
+						tmp[2:10] != ethcli.ERC20transfer &&
+						tmp[2:10] != ethcli.ERC20transfer256 &&
+						tmp[2:10] != ethcli.ERC20transferFrom &&
+						tmp[2:10] != ethcli.ERC20transferFrom256) {
 					// this is an ether transfer
 					if txs[i].Value, ok = txObj["value"].(string); !ok {
 						err = types.ErrNoTrxValue
+
 						return
 					}
+
 					if txs[i].From, ok = txObj["from"].(string); !ok {
 						err = types.ErrNoTrxFrom
+
 						return
 					}
 					// To is already done
 					txs[i].Data = tmp
-
 				} else {
 					// this is a token transaction
 					if len(tmp) > 10 {
@@ -145,6 +170,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 							if len(tmp) >= 138 {
 								if txs[i].From, ok = txObj["from"].(string); !ok {
 									err = types.ErrNoTrxFrom
+
 									return
 								}
 								// To comes in "input" after 24 padded 0s
@@ -158,9 +184,9 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 									j-- // keep Value with even hex-digits
 								}
 								txs[i].Value = "0x" + tmp[j:138]
-
 							} else {
 								err = types.ErrTrxWrongLen
+
 								return
 							}
 						} else if tmp[2:10] == ethcli.ERC20transferFrom || tmp[2:10] == ethcli.ERC20transferFrom256 {
@@ -178,6 +204,7 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 								txs[i].Value = "0x" + tmp[j:202]
 							} else {
 								err = types.ErrTrxWrongLen
+
 								return
 							}
 						}
@@ -191,24 +218,29 @@ func (e *Ethereum) DecodeTxs(t interface{}) (txs []types.Trans, err error) {
 
 				if txs[i].Gas, ok = txObj["gas"].(string); !ok {
 					err = types.ErrNoTrxGasUsed
+
 					return
 				}
+
 				if tmp, ok = txObj["gasPrice"].(string); !ok {
 					err = types.ErrNoTrxGasPrice
+
 					return
 				}
+
 				if txs[i].Price, err = strconv.ParseUint(tmp, 0, 64); err != nil {
 					return
 				}
+				// Token has to be parsed from Data
 				// timestamp should be got from block's ts
 				// fee is gas*price but gas here is the one sent, not consumed!!
 				txs[i].Status = ethcli.TrxPending // status should be got from TransactionReceipt
-				// Token has to be parsed from Data
 			}
 		default:
 			log.Printf("NODE ERROR: unknown txList type %T\n", t)
 		}
 	}
+
 	return
 }
 
@@ -217,32 +249,43 @@ func (e *Ethereum) GetToken(token string) (t types.Token, err error) {
 	if t.Name, err = e.c.GetTokenName(token); err != nil {
 		return
 	}
+
 	if t.Symbol, err = e.c.GetTokenSymbol(token); err != nil {
 		return
 	}
+
 	var dec uint64
+
 	if dec, err = e.c.GetTokenDecimals(token); err != nil {
 		return
 	}
+
 	t.Decimals = uint8(dec)
 	// ... TODO IcoOffer...
+
 	return
 }
 
-// Send executes a transaction in the blockchain with the given parameters returning the expected fee, the transaction hash or an error otherwise. If 'dryRun' is true, the transaction will not be sent to the blockchain but still a valid hash will be returned.
-func (e *Ethereum) Send(fromAddress, toAddress, token, amount string, data []byte, key string, priceIn uint64, dryRun bool) (fee *big.Int, hash []byte, err error) {
-
+// Send executes a transaction in the blockchain with the given parameters returning the expected fee, the transaction
+// hash or an error otherwise. If 'dryRun' is true, the transaction will not be sent to the blockchain but still a
+// valid hash will be returned.
+func (e *Ethereum) Send(fromAddress, toAddress, token, amount string, data []byte, key string, priceIn uint64,
+	dryRun bool) (fee *big.Int, hash []byte, err error) {
 	var price, gas uint64
 	price, gas, hash, err = e.c.SendTrx(fromAddress, toAddress, token, amount, data, key, priceIn, dryRun)
 	fee = new(big.Int).SetUint64(price)
+
 	var gB *big.Int = new(big.Int).SetUint64(gas)
 	fee = fee.Mul(fee, gB)
+
 	return
 }
 
 // Get returns the details of the transaction for the given hash.
-func (e *Ethereum) Get(hash string) (blk uint64, ts int32, fee uint64, status uint8, token, data []byte, to, from, amount string, err error) {
+func (e *Ethereum) Get(hash string) (blk uint64, ts int32, fee uint64, status uint8, token, data []byte, to, from,
+	amount string, err error) {
 	// var price, gas uint64
 	blk, ts, _, _, status, fee, token, data, to, from, amount, err = e.c.GetTrx(hash)
+
 	return
 }

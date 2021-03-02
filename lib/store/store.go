@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// DB defines required methods for wallets and explorers
+// DB defines required methods for wallets and explorers.
 type DB interface {
 	// methods for wallet service
 	AddAddress(Address, string) ([]byte, error)
@@ -17,8 +17,7 @@ type DB interface {
 	DeleteExplorer(string) error
 }
 
-// Errors returned:
 var (
-	ErrAddrNotFound = errors.New("Address was not found in store")
-	ErrDataNotFound = errors.New("Data was not found in store")
+	ErrAddrNotFound = errors.New("address was not found in store")
+	ErrDataNotFound = errors.New("data was not found in store")
 )

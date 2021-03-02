@@ -2,10 +2,12 @@
 package postgres
 
 import (
-	"github.com/tarancss/adp/lib/store"
-
 	"database/sql"
-	_ "github.com/lib/pq" // load the postgres driver that is used by the system
+	"fmt"
+
+	_ "github.com/lib/pq" //nolint:gci // load the postgres driver that is used by the system
+
+	"github.com/tarancss/adp/lib/store"
 )
 
 type Postgres struct {
@@ -13,14 +15,16 @@ type Postgres struct {
 }
 
 // New returns a postgres client connection to the specified database in 'connection'.
-func New(connection string) (store.DB, error) {
-	var err error
-	var p Postgres
-	p.db, err = sql.Open("postgres", connection)
-	return &p, err
+func New(connection string) (*Postgres, error) {
+	db, err := sql.Open("postgres", connection)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to DB in %s: %w", connection, err)
+	}
+
+	return &Postgres{db: db}, nil
 }
 
-// DbClose will close any database connection. Must be called at termination time.
+// ClosePostgres will close any database connection. Must be called at termination time.
 func (p *Postgres) ClosePostgres() error {
 	return p.db.Close()
 }
@@ -30,6 +34,7 @@ func (p *Postgres) AddAddress(a store.Address, net string) ([]byte, error) {
 
 	return []byte{0x00}, nil
 }
+
 func (p *Postgres) RemoveAddress(a store.Address, net string) error {
 	println("postgres: RemoveAddress TODO!!!")
 
@@ -38,20 +43,24 @@ func (p *Postgres) RemoveAddress(a store.Address, net string) error {
 
 func (p *Postgres) GetAddresses(net []string) (addrs []store.ListenedAddresses, err error) {
 	println("postgres: GetAddresses TODO!!!")
+
 	return
 }
 
 func (p *Postgres) LoadExplorer(net string) (ne store.NetExplorer, err error) {
 	println("postgres: LoadExplorer TODO!!!")
+
 	return
 }
 
 func (p *Postgres) SaveExplorer(net string, ne store.NetExplorer) (err error) {
 	println("postgres: SaveExplorer TODO!!!")
+
 	return
 }
 
 func (p *Postgres) DeleteExplorer(net string) (err error) {
 	println("postgres: DeleteExplorer TODO!!!")
+
 	return
 }

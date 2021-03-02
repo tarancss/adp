@@ -22,48 +22,65 @@ import (
 	"github.com/tarancss/hd"
 )
 
+//nolint:funlen,gocognit //test all methods
 func TestAPI(t *testing.T) {
 	// start a mock blockchain server
 	mock := httptest.NewServer(http.HandlerFunc(mockHandler))
-	t.Logf("Info: running tests against mock blockchain in %s", mock.URL)
 	defer mock.Close()
+
+	t.Logf("Info: running tests against mock blockchain in %s", mock.URL)
 
 	// connect to DB
 	dbType := db.MONGODB
-	dbUri := "mongodb://localhost:27017"
-	s, _ := db.New(dbType, dbUri)
+	dbURI := "mongodb://localhost:27017"
+
+	s, _ := db.New(dbType, dbURI)
 	defer db.Close(dbType, s)
 
 	// connect to msg broker
 	mb, err := amqp.New("amqp://guest:guest@localhost:5672")
 	if err != nil {
 		t.Errorf("Error creating broker:%e", err)
+
 		return
 	}
 	defer mb.Close() // closing the message broker will stop the go routine launched by the function
-	mb.Setup(nil)    // setup the exchanges
+
+	mb.Setup(nil) // setup the exchanges
 
 	// load HD wallet
-	var hdw *hd.HdWallet
-	var seed []byte
-	if seed, err = hex.DecodeString("642ce4e20f09c9f4d285c2b336063eaafbe4cb06dece8134f3a64bdd8f8c0c24df73e1a2e7056359b6db61e179ff45e5ada51d14f07b30becb6d92b961d35df4"); err != nil {
+	seed, err := hex.DecodeString("642ce4e20f09c9f4d285c2b336063eaafbe4cb06dece8134f3a64bdd8f8c0c24df73e1a2e7056359b6db61e179ff45e5ada51d14f07b30becb6d92b961d35df4") //nolint:lll // seed is 64 bytes
+	if err != nil {
 		t.Errorf("Error decoding seed:%e", err)
+
+		return
 	}
-	if hdw, err = hd.Init(seed); err != nil {
-		t.Errorf("Error initialising HD wallet:%e", err)
+
+	hdw, err := hd.Init(seed)
+	if err != nil {
+		t.Errorf("Error initializing HD wallet:%e", err)
+
+		return
 	}
 
 	// define a chain at the mock server URL
-	net := "ropsten"
-	bc, err := block.Init([]config.BlockConfig{config.BlockConfig{Name: net, Node: mock.URL, Secret: "", MaxBlocks: 4}})
+	bc, err := block.Init([]config.BlockConfig{{Name: "ropsten", Node: mock.URL, Secret: "", MaxBlocks: 4}})
+	if err != nil {
+		t.Errorf("error initializing blockchain client:%e", err)
+
+		return
+	}
+
 	defer block.End(bc)
 
 	// set up server for API
 	w := New(db.MONGODB, s, mb, bc, hdw)
 	go w.Init("", "3030", "", "", "")
+
 	time.Sleep(200 * time.Millisecond) // let the server come up
 
 	// define tests
+	//nolint:lll // one test case per line
 	cases := []struct {
 		name, method, uri string      // case name, http method to use and uri
 		obj               interface{} // object for POST, PUT, DELETE
@@ -84,10 +101,10 @@ func TestAPI(t *testing.T) {
 		{"addrbal_4", http.MethodGet, "http://localhost:3030/address/0xcba75F167B03e34B8a572c50273C082401b073Ed?tok=0xa34de7bd2b4270c0b12d5fd7a0c219a4d68d732f", nil, nil, 200, "", []addrBalance{{Net: "ropsten", Bal: "1615796230433485760", Tok: "751000000000000000"}}},
 		{"address_0", http.MethodGet, "http://localhost:3030/address?wallet=2&change=external&id=1", nil, nil, http.StatusOK, "", "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"},
 		{"address_1", http.MethodPost, "http://localhost:3030/address?wallet=2&change=external&id=1", nil, nil, http.StatusMethodNotAllowed, "", ""},
-		{"address_2", http.MethodGet, "http://localhost:3030/address?wallet=2&id=1", nil, nil, http.StatusBadRequest, "Bad request", ""},
-		{"listen_0", http.MethodGet, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed", nil, nil, http.StatusBadRequest, "Undefined blockchain - missing query: ?net=<blockchain>", ""},
-		{"listen_1", http.MethodGet, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten", nil, nil, http.StatusBadRequest, "Bad method in request", ""},
-		{"listen_2", http.MethodPost, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten&net=rinkeby", nil, nil, http.StatusBadRequest, "Undefined blockchain - missing query: ?net=<blockchain>", ""},
+		{"address_2", http.MethodGet, "http://localhost:3030/address?wallet=2&id=1", nil, nil, http.StatusBadRequest, ErrBadrequest.Error(), ""},
+		{"listen_0", http.MethodGet, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed", nil, nil, http.StatusBadRequest, ErrMissingNet.Error(), ""},
+		{"listen_1", http.MethodGet, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten", nil, nil, http.StatusBadRequest, ErrBadMethod.Error(), ""},
+		{"listen_2", http.MethodPost, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten&net=rinkeby", nil, nil, http.StatusBadRequest, ErrMissingNet.Error(), ""},
 		{"listen_3", http.MethodPost, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten", nil, nil, http.StatusAccepted, "", ""},
 		{"listen_4", http.MethodDelete, "http://localhost:3030/listen/0xcba75F167B03e34B8a572c50273C082401b073Ed?net=ropsten", nil, nil, http.StatusAccepted, "", ""},
 		{"getAdr_0", http.MethodPost, "http://localhost:3030/listen", nil, nil, http.StatusMethodNotAllowed, "", ""},
@@ -95,12 +112,12 @@ func TestAPI(t *testing.T) {
 		{"getAdr_2", http.MethodGet, "http://localhost:3030/listen", nil, nil, http.StatusAccepted, "", []store.ListenedAddresses{{Net: "ropsten", Addr: []store.Address{}}}},
 		{"getAdr_3", http.MethodGet, "http://localhost:3030/listen?net=ropsten", nil, nil, http.StatusAccepted, "", []store.ListenedAddresses{{Net: "ropsten", Addr: []store.Address{}}}},
 		{"send_0", http.MethodPut, "http://localhost:3030/send", nil, nil, http.StatusMethodNotAllowed, "", ""},
-		{"send_1", http.MethodPost, "http://localhost:3030/send", TxReq{Net: "rinkeby"}, nil, http.StatusOK, "Network not available", types.Trans{}},
-		{"send_2", http.MethodPost, "http://localhost:3030/send", TxReq{Net: "ropsten", Wallet: 2, Change: 0, Id: 1, Tx: types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656"}}, nil, http.StatusAccepted, "", types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656", Hash: "0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", Status: 0, From: "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"}},
+		{"send_1", http.MethodPost, "http://localhost:3030/send", TxReq{Net: "rinkeby"}, nil, http.StatusNotFound, "network not available", types.Trans{}},
+		{"send_2", http.MethodPost, "http://localhost:3030/send", TxReq{Net: "ropsten", Wallet: 2, Change: 0, ID: 1, Tx: types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656"}}, nil, http.StatusAccepted, "", types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656", Hash: "0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", Status: 0, From: "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"}},
 		{"tx_0", http.MethodPut, "http://localhost:3030/tx/0x123456", nil, nil, http.StatusMethodNotAllowed, "", types.Trans{}},
-		{"tx_1", http.MethodGet, "http://localhost:3030/tx/0x123456", nil, nil, http.StatusBadRequest, "You need to supply a 32-byte hash!", types.Trans{}},
-		{"tx_2", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", nil, nil, http.StatusBadRequest, "Network not available", types.Trans{}},
-		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=mainNet", nil, nil, http.StatusBadRequest, "Network not available", types.Trans{}},
+		{"tx_1", http.MethodGet, "http://localhost:3030/tx/0x123456", nil, nil, http.StatusBadRequest, ErrNoHash.Error(), types.Trans{}},
+		{"tx_2", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", nil, nil, http.StatusBadRequest, ErrNoNet.Error(), types.Trans{}},
+		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=mainNet", nil, nil, http.StatusBadRequest, ErrNoNet.Error(), types.Trans{}},
 		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusBadRequest, "Hash of transaction does not match with requested hash", types.Trans{}},
 		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusOK, "", types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656", Hash: "0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", Status: 0, From: "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"}},
 	}
@@ -147,7 +164,12 @@ func TestAPI(t *testing.T) {
 						t.Errorf("[%s] Error unmarshaling body:%s error:%s", c.name, b, err)
 					}
 					// check results
-					if len(sab) != len(c.resExp.([]addrBalance)) || (len(sab) > 0 && len(c.resExp.([]addrBalance)) > 0 && (sab[0].Net != c.resExp.([]addrBalance)[0].Net || sab[0].Bal != c.resExp.([]addrBalance)[0].Bal || sab[0].Tok != c.resExp.([]addrBalance)[0].Tok)) {
+					if len(sab) != len(c.resExp.([]addrBalance)) ||
+						(len(sab) > 0 &&
+							len(c.resExp.([]addrBalance)) > 0 &&
+							(sab[0].Net != c.resExp.([]addrBalance)[0].Net ||
+								sab[0].Bal != c.resExp.([]addrBalance)[0].Bal ||
+								sab[0].Tok != c.resExp.([]addrBalance)[0].Tok)) {
 						t.Errorf("[%s] Error in response:%v expected:%v", c.name, sab, c.resExp.([]addrBalance))
 					}
 				case "listen":
@@ -162,7 +184,10 @@ func TestAPI(t *testing.T) {
 						}
 					}
 					// check results
-					if len(sla) != len(c.resExp.([]store.ListenedAddresses)) || (len(sla) > 0 && len(c.resExp.([]store.ListenedAddresses)) > 0 && (sla[0].Net != c.resExp.([]store.ListenedAddresses)[0].Net)) {
+					if len(sla) != len(c.resExp.([]store.ListenedAddresses)) ||
+						(len(sla) > 0 &&
+							len(c.resExp.([]store.ListenedAddresses)) > 0 &&
+							(sla[0].Net != c.resExp.([]store.ListenedAddresses)[0].Net)) {
 						t.Errorf("[%s] Error in response:%v expected:%v", c.name, sla, c.resExp.([]store.ListenedAddresses))
 					}
 				case "send", "tx":
@@ -173,19 +198,26 @@ func TestAPI(t *testing.T) {
 						}
 					}
 					// check result
-					if tx.Hash != c.resExp.(types.Trans).Hash || tx.To != c.resExp.(types.Trans).To || tx.From != c.resExp.(types.Trans).From || tx.Value != c.resExp.(types.Trans).Value {
+					if tx.Hash != c.resExp.(types.Trans).Hash ||
+						tx.To != c.resExp.(types.Trans).To ||
+						tx.From != c.resExp.(types.Trans).From ||
+						tx.Value != c.resExp.(types.Trans).Value {
 						t.Errorf("[%s] Error in response:%v expected:%v", c.name, tx, c.resExp.(types.Trans))
 					}
 				}
 			}
 		}
 	}
+
 	w.Stop()
 }
 
-// makeRequest places a http request on uri. Depending on method it will include obj in the request (ie. for POST). Returns the status code, the body and error fields of the received JSON response.
+// makeRequest places a http request on uri. Depending on method it will include obj in the request (ie. for POST).
+// Returns the status code, the body and error fields of the received JSON response.
+//nolint:bodyclose,noctx // body is closed at the end, context not required for tests
 func makeRequest(method, uri string, obj interface{}) (s int, b, e string, err error) {
 	var resp *http.Response
+
 	switch method {
 	case http.MethodGet:
 		if resp, err = http.Get(uri); err != nil {
@@ -193,6 +225,7 @@ func makeRequest(method, uri string, obj interface{}) (s int, b, e string, err e
 		}
 	case http.MethodPost:
 		var pl []byte
+
 		switch v := obj.(type) {
 		case TxReq:
 			if pl, err = json.Marshal(v); err != nil {
@@ -203,39 +236,47 @@ func makeRequest(method, uri string, obj interface{}) (s int, b, e string, err e
 				return
 			}
 		}
+
 		if resp, err = http.Post(uri, "application/json;charset=utf8", bytes.NewBuffer(pl)); err != nil {
 			return
 		}
 	case http.MethodDelete, http.MethodPut:
 		client := &http.Client{}
+
 		var req *http.Request
+
 		if req, err = http.NewRequest(method, uri, nil); err != nil {
 			return
 		}
+
 		if resp, err = client.Do(req); err != nil {
 			return
 		}
 	default:
-		err = errors.New("Method not found!!")
+		err = errors.New("method not found!!") //nolint:goerr113 // we are testing
+
 		return
 	}
 
 	s = resp.StatusCode
+
 	var v struct {
 		B string `json:"body"`
 		E string `json:"error"`
 	}
+
 	if resp.ContentLength > 0 {
 		var p []byte = make([]byte, int(resp.ContentLength))
-		var n int
-		n, _ = resp.Body.Read(p)
+
+		n, _ := resp.Body.Read(p)
 		resp.Body.Close()
+
 		err = json.Unmarshal(p[:n], &v)
 	}
-	return s, v.B, v.E, err
+
+	return s, v.B, v.E, err //nolint:wrapcheck // we are testing
 }
 
-// mockRequest
 type mockRequest struct {
 	Version string           `json:"jsonrpc"`
 	Method  string           `json:"method"`
@@ -243,7 +284,6 @@ type mockRequest struct {
 	ID      *json.RawMessage `json:"id"`
 }
 
-// mockResponse
 type mockResponse struct {
 	Version string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id"`
@@ -251,11 +291,13 @@ type mockResponse struct {
 	Error   interface{}      `json:"error,omitempty"`
 }
 
-// mockHandler defines the handler function for mock HTTP server
+// mockHandler defines the handler function for mock HTTP server.
+//nolint:gochecknoglobals // used by all tests
 var mockHandler = func(w http.ResponseWriter, r *http.Request) {
 	var req mockRequest
 	var res mockResponse
 	var err error
+
 	// make sure we reply to request either with error or the response
 	defer func() {
 		w.Header().Set("Content-Type", "application/json")
@@ -265,19 +307,23 @@ var mockHandler = func(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("[Mock server] Error encoding response:%e\n", err)
 		}
 	}()
+
 	// read request body
 	var body []byte = make([]byte, int(r.ContentLength))
 	var n int
 	n, err = r.Body.Read(body)
-	if err == nil || (err == io.EOF && n == int(r.ContentLength)) {
+	if err == nil || (errors.Is(err, io.EOF) && n == int(r.ContentLength)) {
 		// fmt.Printf("[Mock server] Request Body:%s", body)  // (un)comment this line for less/more verbosity
 	} else {
-		res.Error = errors.New(fmt.Sprintf("n:%d error:%e\n", n, err))
+		res.Error = fmt.Errorf("n:%d error:%w\n", n, err)
+
 		return
 	}
+
 	// unmarshal JSON body
 	if err = json.Unmarshal(body, &req); err != nil {
-		res.Error = errors.New(fmt.Sprintf("Error unmarshaling Body:%e\n", err))
+		res.Error = fmt.Errorf("error unmarshaling body: %w\n", err)
+
 		return
 	}
 	res.ID = req.ID
@@ -288,11 +334,12 @@ var mockHandler = func(w http.ResponseWriter, r *http.Request) {
 	for j := 0; j < len(buf); j++ {
 		i = i*10 + int(buf[j]-0x30)
 	}
+
 	res.Result = mock[i]
-	return
 }
 
 // mock contains the data used by the mock server.
+//nolint:lll,gochecknoglobals // test data
 var mock []interface{} = []interface{}{
 	// addrBal_1
 	"0x00",

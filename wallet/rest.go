@@ -9,7 +9,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Init sets up and starts the http/https server to service the RESTful API for a wallet service. If sslPort, ssCert and sslKey are informed, it will start an https (TLS) server on the specified endpoint.
+const timeout = 15
+
+// Init sets up and starts the http/https server to service the RESTful API for a wallet service. If sslPort, ssCert
+// and sslKey are informed, it will start an https (TLS) server on the specified endpoint.
 func (w *Wallet) Init(endpoint, port, sslPort, sslCert, sslKey string) string {
 	var err, errTLS error
 
@@ -34,12 +37,14 @@ func (w *Wallet) Init(endpoint, port, sslPort, sslCert, sslKey string) string {
 			Handler: r,
 			Addr:    endpoint + ":" + port,
 			// Good practice: enforce timeouts for servers you create!
-			WriteTimeout: 15 * time.Second,
-			ReadTimeout:  15 * time.Second,
+			WriteTimeout: timeout * time.Second,
+			ReadTimeout:  timeout * time.Second,
 		}
+
 		go func() {
 			err = w.s.ListenAndServe()
 		}()
+
 		log.Printf("Listening to API http requests on %s:%s", endpoint, port)
 	}
 	// start https server
@@ -48,12 +53,14 @@ func (w *Wallet) Init(endpoint, port, sslPort, sslCert, sslKey string) string {
 			Handler: r,
 			Addr:    endpoint + ":" + sslPort,
 			// Good practice: enforce timeouts for servers you create!
-			WriteTimeout: 15 * time.Second,
-			ReadTimeout:  15 * time.Second,
+			WriteTimeout: timeout * time.Second,
+			ReadTimeout:  timeout * time.Second,
 		}
+
 		go func() {
 			errTLS = w.ss.ListenAndServeTLS(sslCert, sslKey)
 		}()
+
 		log.Printf("Listening to API https requests on %s:%s", endpoint, sslPort)
 	}
 	// wait for servers to be shutdown

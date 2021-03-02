@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/tarancss/adp/explorer"
 	"github.com/tarancss/adp/lib/block"
 	"github.com/tarancss/adp/lib/config"
@@ -27,35 +28,39 @@ func main() {
 	monitor := flag.Bool("m", false, "flag to monitor the server with Prometheus at http://localhost:9090")
 	flag.Parse()
 
-	//extract configuration
-	var err error
-	var conf config.ServiceConfig
-	if conf, err = config.ExtractConfiguration(*confPath); err != nil {
+	// extract configuration
+	conf, err := config.ExtractConfiguration(*confPath)
+	if err != nil {
 		panic(err)
 	}
+
 	log.Printf("Configuration:%+v", conf)
 
 	// connect to database
 	var dbConn store.DB
-	if conf.DbConn != "" {
-		log.Printf("Connecting to database:%+v\n", conf.DbConn)
-		if dbConn, err = db.New(conf.DbType, conf.DbConn); err != nil {
+
+	if conf.DBConn != "" {
+		log.Printf("Connecting to database:%+v\n", conf.DBConn)
+
+		if dbConn, err = db.New(conf.DBType, conf.DBConn); err != nil {
 			panic(err)
 		}
 	}
-	defer db.Close(conf.DbType, dbConn)
+	defer db.Close(conf.DBType, dbConn)
 
 	// load all blockchains
-	var blocks map[string]block.Chain
-	if blocks, err = block.Init(conf.Bc); err != nil {
+	blocks, err := block.Init(conf.Bc)
+	if err != nil {
 		panic(err)
 	}
+
 	log.Print("Blockchain clients loaded")
 
 	// load Prometheus monitor
 	if *monitor {
 		go func() {
 			log.Println("Serving metrics API")
+
 			h := http.NewServeMux()
 			h.Handle("/metrics", promhttp.Handler())
 			http.ListenAndServe(":9100", h)
@@ -64,17 +69,21 @@ func main() {
 
 	// load message broker
 	var mb msg.MsgBroker
+
 	switch conf.MbType {
 	case "amqp":
 		if mb, err = amqp.New(conf.MbConn); err != nil {
 			time.Sleep(10 * time.Second) // wait 10s for AMQP to be ready and try to reconnect
+
 			if mb, err = amqp.New(conf.MbConn); err != nil {
 				panic(err)
 			}
 		}
+
 		if err = mb.Setup(nil); err != nil {
 			panic(err)
 		}
+
 		defer func() {
 			err := mb.Close()
 			log.Printf("Closing messageBroker: %e", err)
@@ -84,7 +93,7 @@ func main() {
 	}
 
 	// create explorer service
-	e := explorer.New(conf.DbType, dbConn, mb, blocks)
+	e := explorer.New(conf.DBType, dbConn, mb, blocks)
 
 	// capture CTRL+C or docker's SIGTERM for gracious exit
 	go func() {
