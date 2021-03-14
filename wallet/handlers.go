@@ -139,8 +139,6 @@ func (w *Wallet) addrBalHandler(rw http.ResponseWriter, r *http.Request) {
 
 	v := mux.Vars(r)
 	if address, ok := v["address"]; ok {
-		var ethBal, tokBal *big.Int = new(big.Int), new(big.Int)
-
 		var tok string = ""
 
 		var nets []string
@@ -156,7 +154,7 @@ func (w *Wallet) addrBalHandler(rw http.ResponseWriter, r *http.Request) {
 		// call all the clients
 		for name, client := range w.bc {
 			if len(nets) == 0 || util.In(nets, name) {
-				err = client.Balance(address, tok, ethBal, tokBal)
+				ethBal, tokBal, err := client.Balance(address, tok)
 				if err != nil {
 					if tok != "" && errors.Is(err, ethcli.ErrBadAmt) {
 						// this case happens when the token does not exist for the given blockchain
@@ -460,7 +458,7 @@ func (w *Wallet) txHandler(rw http.ResponseWriter, r *http.Request) {
 
 	var res Response
 
-	var tx types.Trans
+	tx := &types.Trans{}
 
 	defer func() {
 		// reply to requester accordingly
@@ -470,7 +468,7 @@ func (w *Wallet) txHandler(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusBadRequest)
 		} else {
 			rw.WriteHeader(http.StatusOK)
-			tmp, _ := json.Marshal(tx)
+			tmp, _ := json.Marshal(*tx)
 			res.Body = string(tmp)
 		}
 		// log request and tx hash
@@ -505,27 +503,7 @@ func (w *Wallet) txHandler(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		blk, ts, fee, status, token, data, to, from, amount, errGet := b.Get(hash)
-		if errGet != nil {
-			err = errGet
-
-			return
-		}
-
-		tx = types.Trans{
-			Block:  strconv.FormatUint(blk, 10),
-			Status: status,
-			Hash:   hash,
-			From:   from,
-			To:     to,
-			Token:  "0x" + hex.EncodeToString(token),
-			Value:  amount,
-			Data:   hex.EncodeToString(data),
-			Price:  0,
-			Gas:    "",
-			Fee:    fee,
-			TS:     uint32(ts),
-		}
+		tx, err = b.Get(hash)
 	} else {
 		err = ErrNoHash
 	}

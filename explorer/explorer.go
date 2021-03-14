@@ -149,7 +149,7 @@ func (e *Explorer) ExploreChain(net string, ret chan string) {
 			// check block is chained
 			if !nexp.Chained(blk.PHash) {
 				// TODO: extra functionality FindLastSync
-				log.Printf("[%s] Block %d is not chained!! \n%+v\n%d", net, nexp.Block+1, nexp.Bh, nexp.Bhi)
+				log.Printf("[%s] Block %d is not chained!!\n", net, nexp.Block+1)
 				nexp.Stop()
 
 				return

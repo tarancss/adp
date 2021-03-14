@@ -3,6 +3,7 @@ package ethereum
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"strconv"
@@ -40,13 +41,16 @@ func (e *Ethereum) AvgBlock() int {
 
 // Close ends a connection.
 func (e *Ethereum) Close() {
-	e.c.End()
+	err := e.c.End()
+	if err != nil {
+		log.Printf("ethereum: error closing client: %v", err)
+	}
 }
 
 // Balance loads the ether balance, and the token balance if specified, onto the provided big.Int pointers, or error
 // otherwise.
-func (e *Ethereum) Balance(address, token string, ethBal, tokBal *big.Int) error {
-	return e.c.GetBalance(address, token, ethBal, tokBal)
+func (e *Ethereum) Balance(address, token string) (ethBal, tokBal *big.Int, err error) {
+	return e.c.GetBalance(address, token)
 }
 
 // GetBlock returns in response the block number requested. If full, it provides all the details of the transactions.
@@ -282,10 +286,24 @@ func (e *Ethereum) Send(fromAddress, toAddress, token, amount string, data []byt
 }
 
 // Get returns the details of the transaction for the given hash.
-func (e *Ethereum) Get(hash string) (blk uint64, ts int32, fee uint64, status uint8, token, data []byte, to, from,
-	amount string, err error) {
-	// var price, gas uint64
-	blk, ts, _, _, status, fee, token, data, to, from, amount, err = e.c.GetTrx(hash)
+func (e *Ethereum) Get(hash string) (*types.Trans, error) {
+	trx, err := e.c.GetTrx(hash)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get transaction for hash %s: %w", hash, err)
+	}
 
-	return
+	return &types.Trans{
+		Block:  strconv.FormatUint(trx.Blk, 10),
+		Hash:   trx.Hash,
+		From:   trx.From,
+		To:     trx.To,
+		Token:  "0x" + string(trx.Token),
+		Value:  trx.Amount,
+		Data:   string(trx.Data),
+		Gas:    strconv.FormatUint(trx.Gas, 10),
+		Price:  trx.Price,
+		Fee:    trx.Fee,
+		Status: trx.Status,
+		TS:     uint32(trx.TS),
+	}, nil
 }

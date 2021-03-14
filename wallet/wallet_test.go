@@ -118,8 +118,8 @@ func TestAPI(t *testing.T) {
 		{"tx_1", http.MethodGet, "http://localhost:3030/tx/0x123456", nil, nil, http.StatusBadRequest, ErrNoHash.Error(), types.Trans{}},
 		{"tx_2", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", nil, nil, http.StatusBadRequest, ErrNoNet.Error(), types.Trans{}},
 		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=mainNet", nil, nil, http.StatusBadRequest, ErrNoNet.Error(), types.Trans{}},
-		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusBadRequest, "Hash of transaction does not match with requested hash", types.Trans{}},
-		{"tx_3", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusOK, "", types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656", Hash: "0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", Status: 0, From: "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"}},
+		{"tx_4", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusBadRequest, "cannot get transaction for hash 0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872: hash of transaction does not match with requested hash", types.Trans{}},
+		{"tx_5", http.MethodGet, "http://localhost:3030/tx/0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872?net=ropsten", nil, nil, http.StatusOK, "", types.Trans{To: "0x357dd3856d856197c1a000bbAb4aBCB97Dfc92c4", Value: "0x565656", Hash: "0x2ba030485e79b5a98275b45d940e6fdd07b40dea593ef3b2a69b0a02a68a5872", Status: 0, From: "0xf4cefc8d1afaa51d5a5e7f57d214b60429ca4378"}},
 	}
 
 	// run tests

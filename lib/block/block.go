@@ -18,15 +18,14 @@ type Chain interface {
 	AvgBlock() int  // average block mining rate in seconds
 	// methods
 	Close()
-	Balance(account, token string, bal, tokBal *big.Int) error
+	Balance(account, token string) (bal, tokBal *big.Int, err error)
 	GetBlock(block uint64, full bool, response interface{}) error
 	DecodeBlock(b interface{}) (types.Block, error)
 	DecodeTxs(t interface{}) ([]types.Trans, error)
 	GetToken(token string) (types.Token, error)
 	Send(fromAddress, toAddress, token, amount string, data []byte, key string, priceIn uint64,
 		dryRun bool) (fee *big.Int, hash []byte, err error)
-	Get(hash string) (blk uint64, ts int32, fee uint64, status uint8, token, data []byte, to, from, amount string,
-		err error)
+	Get(hash string) (t *types.Trans, err error)
 }
 
 // Init loads all the clients read from the config to blockchains into a map.
