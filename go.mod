@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/streadway/amqp v0.0.0-20200108173154-1c71cc93ed71
 	github.com/tarancss/ethcli v1.1.4
-	github.com/tarancss/hd v1.1.3
+	github.com/tarancss/hd v1.1.4
 	go.mongodb.org/mongo-driver v1.5.1
 )
 
@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go v1.34.28 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/btcsuite/btcutil v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
